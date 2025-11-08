@@ -21,8 +21,6 @@ namespace OreRecovery
 
         static async Task Main(string[] args)
         {
-            PublicKey shareAccount = new PublicKey("GgrqV2jcXc84ACQMVM6US6AGHQUEsT8TNdiet6KGw7fE"); //Manually need to add the share account
-
             if (!File.Exists("id.txt"))
             {
                 Console.WriteLine("Save private key in a file called 'id.txt' in the same directory and restart");
@@ -59,6 +57,66 @@ namespace OreRecovery
             Account acc = wallet.Account;
 
             Console.WriteLine($"Found wallet: {acc.PublicKey}");
+
+            PublicKey shareAccount = null;
+
+            Console.Write("Enter share account key or RPC url to search: ");
+            string accOrRPC = Console.ReadLine();
+
+            //RPC, try finding
+            if (Uri.TryCreate(accOrRPC.Trim(), UriKind.Absolute, out Uri result))
+            {
+                Console.WriteLine($"Searching program accounts for member key...");
+
+                _client = ClientFactory.GetClient(result.AbsoluteUri); //Switch RPC
+
+                Solnet.Rpc.Core.Http.RequestResult<List<AccountKeyPair>> programAccountResult = await _client.GetProgramAccountsAsync(_programId);
+
+                if (!programAccountResult.WasSuccessful)
+                {
+                    Console.WriteLine($"Failed to pull program accounts with RPC. Reason: {programAccountResult.Reason}");
+                    Console.ReadLine();
+
+                    return;
+                }
+
+
+                //Find wallet
+                foreach (var account in programAccountResult.Result)
+                {
+                    byte[] data = Convert.FromBase64String(account.Account.Data[0]);
+
+                    if (data.Length != 88)
+                    {
+                        continue;
+                    }
+
+                    Member member = Member.ReadFrom(data);
+
+                    if (member.Pool == acc.PublicKey)
+                    {
+                        shareAccount = new PublicKey(account.PublicKey);
+
+                        Console.WriteLine($"Found member account: {shareAccount}");
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                Base58Encoder encoder = new Base58Encoder();
+                byte[] keyData = encoder.DecodeData(accOrRPC.Trim());
+
+                if (keyData.Length != 32)
+                {
+                    Console.WriteLine($"Invalid member account key");
+                    Console.ReadLine();
+
+                    return;
+                }
+
+                shareAccount = new PublicKey(keyData);
+            }
 
             PublicKey.TryFindProgramAddress(new List<byte[]> { Encoding.UTF8.GetBytes("proof"), acc.PublicKey.KeyBytes }, _orev2Id, out PublicKey mainWalletProof, out byte nonce);
             PublicKey.TryFindProgramAddress(new List<byte[]> { Encoding.UTF8.GetBytes("proof"), shareAccount.KeyBytes }, _orev2Id, out PublicKey shareAccountProof, out byte _);
@@ -125,9 +183,9 @@ namespace OreRecovery
             Console.WriteLine("Hit enter to send transaction");
             Console.ReadLine();
 
-            Solnet.Rpc.Core.Http.RequestResult<string> result = await _client.SendTransactionAsync(transaction);
+            Solnet.Rpc.Core.Http.RequestResult<string> transactionResult = await _client.SendTransactionAsync(transaction);
 
-            Console.WriteLine($"Transaction hash: {result.Result}");
+            Console.WriteLine($"Transaction hash: {transactionResult.Result}");
 
             Console.ReadLine();
         }
