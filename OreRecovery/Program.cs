@@ -169,6 +169,14 @@ namespace OreRecovery
 
             Console.WriteLine($"Simulation results: ");
 
+            if(!results.WasSuccessful)
+            {
+                Console.WriteLine($"Failed. Reason: {results.Reason}");
+                Console.ReadLine();
+
+                return;
+            }
+
             if(results.Result.Value.Error != null)
             {
                 Console.WriteLine($"Failed. Reason: {results.Result.Value.Error.InstructionError.CustomError}");
