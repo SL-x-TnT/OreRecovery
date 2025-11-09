@@ -216,7 +216,7 @@ namespace OreRecovery
 
             tx.AddInstruction(BuildInstruction(account, mainWalletOreToken, shareAccount, shareAccountProof, shareAccountOreToken, mainWalletProof, treasuryOreToken, nonce));
 
-            tx.AddSignature(new byte[64]);
+            //tx.AddSignature(new byte[64]);
 
             return tx.Build(account);
 
